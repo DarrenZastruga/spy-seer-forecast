@@ -32,6 +32,28 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
     }))
   ];
 
+  // Calculate Y-axis domain to center the data
+  const calculateYDomain = (data: any[]) => {
+    const values = data.flatMap(item => [
+      item.actual,
+      item.predicted,
+      item.lower,
+      item.upper
+    ]).filter(val => val !== undefined && val !== null);
+    
+    if (values.length === 0) return [0, 100];
+    
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    const padding = range * 0.15; // 15% padding on each side
+    
+    return [min - padding, max + padding];
+  };
+
+  const yDomain = calculateYDomain(chartData);
+  const confidenceDomain = calculateYDomain(chartData.filter(d => d.type === 'prediction'));
+
   return (
     <Tabs defaultValue="price" className="space-y-4">
       <TabsList className="bg-slate-800 border-slate-700">
@@ -54,7 +76,11 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="date" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
+                  <YAxis 
+                    stroke="#9CA3AF" 
+                    domain={yDomain}
+                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                  />
                   <Tooltip 
                     contentStyle={{
                       backgroundColor: '#1F2937',
@@ -98,7 +124,11 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
                 <AreaChart data={chartData.filter(d => d.type === 'prediction')}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis dataKey="date" stroke="#9CA3AF" />
-                  <YAxis stroke="#9CA3AF" />
+                  <YAxis 
+                    stroke="#9CA3AF" 
+                    domain={confidenceDomain}
+                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                  />
                   <Tooltip 
                     contentStyle={{
                       backgroundColor: '#1F2937',
