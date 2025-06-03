@@ -1,149 +1,123 @@
 
-import axios from 'axios';
+import { StockData } from '@/types/stock';
+import { filterWeekendDays } from './formatters';
 
-export interface StockData {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  adjClose: number;
-}
-
-export const fetchStockData = async (): Promise<StockData[]> => {
-  console.log('Fetching real SPY data from Yahoo Finance...');
+// Function to format Yahoo Finance API response data
+export const formatYahooFinanceData = (data: any): StockData[] => {
+  if (!data || !data.chart || !data.chart.result || data.chart.result.length === 0) {
+    throw new Error('Invalid Yahoo Finance API response format');
+  }
   
+  const result = data.chart.result[0];
+  const timestamps = result.timestamp;
+  const quotes = result.indicators.quote[0];
+  
+  // Ensure we have closing prices
+  if (!timestamps || !quotes || !quotes.close) {
+    throw new Error('Yahoo Finance API data is missing timestamps or closing prices');
+  }
+  
+  const formattedData = timestamps.map((timestamp: number, index: number) => {
+    // Skip any missing/null prices
+    if (quotes.close[index] === null || quotes.close[index] === undefined) {
+      return null;
+    }
+    
+    // Format date as YYYY-MM-DD (in UTC to avoid timezone issues)
+    const date = new Date(timestamp * 1000);
+    const dateString = date.toISOString().split('T')[0];
+    
+    return {
+      date: dateString,
+      open: parseFloat(quotes.open?.[index]?.toFixed(2) || quotes.close[index].toFixed(2)),
+      high: parseFloat(quotes.high?.[index]?.toFixed(2) || quotes.close[index].toFixed(2)),
+      low: parseFloat(quotes.low?.[index]?.toFixed(2) || quotes.close[index].toFixed(2)),
+      close: parseFloat(quotes.close[index].toFixed(2)),
+      volume: parseInt(quotes.volume?.[index] || '0'),
+      adjClose: parseFloat(quotes.close[index].toFixed(2))
+    };
+  }).filter(Boolean); // Remove any null entries
+  
+  console.log('Raw data points before filtering:', formattedData.length);
+  console.log('Sample dates before filtering:', formattedData.slice(0, 5).map(d => d?.date));
+  
+  // Filter out weekend days
+  const filteredData = filterWeekendDays(formattedData);
+  
+  console.log('Data points after weekend filtering:', filteredData.length);
+  console.log('Sample dates after filtering:', filteredData.slice(0, 5).map(d => d.date));
+  
+  return filteredData;
+};
+
+// Fetch historical data from Yahoo Finance API with proxy
+export async function fetchStockData(): Promise<StockData[]> {
   try {
-    // Multiple fallback approaches for Yahoo Finance data
-    const approaches = [
-      // Approach 1: Direct Yahoo Finance with proper headers
-      async () => {
-        const symbol = 'SPY';
-        const period1 = Math.floor((Date.now() - 365 * 24 * 60 * 60 * 1000) / 1000);
-        const period2 = Math.floor(Date.now() / 1000);
-        
-        const response = await axios.get(`https://query1.finance.yahoo.com/v7/finance/download/${symbol}`, {
-          params: {
-            period1,
-            period2,
-            interval: '1d',
-            events: 'history',
-            includeAdjustedClose: true
-          },
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Accept': 'text/csv,application/json,*/*'
-          }
-        });
-        return response.data;
-      },
+    // Calculate date range (1 year ago to now for more data)
+    const now = new Date();
+    const endDate = Math.floor(now.getTime() / 1000);
+    
+    // Get 1 year of data
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(now.getFullYear() - 1);
+    const startDate = Math.floor(oneYearAgo.getTime() / 1000);
+    
+    console.log('Fetching SPY data from Yahoo Finance API');
+    console.log('Date range:', new Date(startDate * 1000).toISOString(), 'to', new Date(endDate * 1000).toISOString());
+    
+    const ticker = 'SPY';
+    const directUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startDate}&period2=${endDate}&interval=1d`;
+    console.log('Direct Yahoo URL:', directUrl);
+    
+    const encodedUrl = encodeURIComponent(directUrl);
+    const proxyUrl = 'https://api.allorigins.win/raw?url=';
+    const fullProxyUrl = `${proxyUrl}${encodedUrl}`;
+    console.log('Full proxy URL:', fullProxyUrl);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    try {
+      const response = await fetch(fullProxyUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal
+      });
       
-      // Approach 2: Alternative Yahoo Finance endpoint
-      async () => {
-        const response = await axios.get('https://query2.finance.yahoo.com/v8/finance/chart/SPY', {
-          params: {
-            range: '1y',
-            interval: '1d',
-            includePrePost: false,
-            events: 'div%2Csplits'
-          }
-        });
-        
-        if (response.data?.chart?.result?.[0]) {
-          const result = response.data.chart.result[0];
-          const timestamps = result.timestamp;
-          const quotes = result.indicators.quote[0];
-          
-          return timestamps.map((timestamp: number, index: number) => {
-            const date = new Date(timestamp * 1000).toISOString().split('T')[0];
-            return `${date},${quotes.open[index]},${quotes.high[index]},${quotes.low[index]},${quotes.close[index]},${quotes.volume[index]},${quotes.close[index]}`;
-          }).join('\n');
-        }
-        throw new Error('Invalid response format');
-      },
+      clearTimeout(timeoutId);
       
-      // Approach 3: Using CORS proxy
-      async () => {
-        const symbol = 'SPY';
-        const period1 = Math.floor((Date.now() - 365 * 24 * 60 * 60 * 1000) / 1000);
-        const period2 = Math.floor(Date.now() / 1000);
-        
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const yahooUrl = `https://query1.finance.yahoo.com/v7/finance/download/${symbol}?period1=${period1}&period2=${period2}&interval=1d&events=history&includeAdjustedClose=true`;
-        
-        const response = await axios.get(proxyUrl + encodeURIComponent(yahooUrl));
-        return response.data;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Yahoo Finance API error (${response.status}):`, errorText);
+        throw new Error(`Yahoo Finance API returned status: ${response.status}`);
       }
-    ];
-    
-    let csvData = '';
-    let lastError = null;
-    
-    // Try each approach until one works
-    for (let i = 0; i < approaches.length; i++) {
-      try {
-        console.log(`Trying Yahoo Finance approach ${i + 1}...`);
-        csvData = await approaches[i]();
-        console.log(`Approach ${i + 1} successful!`);
-        break;
-      } catch (error) {
-        console.log(`Approach ${i + 1} failed:`, error);
-        lastError = error;
-        continue;
-      }
-    }
-    
-    if (!csvData) {
-      throw lastError || new Error('All Yahoo Finance approaches failed');
-    }
-    
-    // Parse CSV response
-    const lines = csvData.split('\n').filter(line => line.trim());
-    const formattedData: StockData[] = [];
-    
-    for (let i = 1; i < lines.length; i++) { // Skip header
-      const values = lines[i].split(',');
       
-      if (values.length >= 6 && values[0] !== '' && !values[1].includes('null')) {
-        try {
-          const stockDataPoint: StockData = {
-            date: values[0].trim(),
-            open: parseFloat(values[1]),
-            high: parseFloat(values[2]),
-            low: parseFloat(values[3]),
-            close: parseFloat(values[4]),
-            adjClose: parseFloat(values[5]),
-            volume: parseInt(values[6]) || 0
-          };
-          
-          // Validate data point
-          if (!isNaN(stockDataPoint.open) && !isNaN(stockDataPoint.close) && 
-              stockDataPoint.open > 0 && stockDataPoint.close > 0) {
-            formattedData.push(stockDataPoint);
-          }
-        } catch (parseError) {
-          console.warn('Error parsing line:', values, parseError);
-          continue;
-        }
+      const data = await response.json();
+      
+      if (data.chart && data.chart.error) {
+        console.error('Yahoo Finance API returned an error:', data.chart.error);
+        throw new Error(`Yahoo Finance API error: ${data.chart.error.description || 'Unknown error'}`);
       }
+      
+      const formattedData = formatYahooFinanceData(data);
+      
+      console.log('Fetched real SPY data:', formattedData.length, 'data points');
+      
+      if (formattedData.length === 0) {
+        throw new Error('No data points returned from Yahoo Finance API');
+      }
+      
+      return formattedData;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    
-    if (formattedData.length === 0) {
-      throw new Error('No valid data parsed from Yahoo Finance response');
-    }
-    
-    // Sort by date to ensure chronological order
-    formattedData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    console.log(`Successfully parsed ${formattedData.length} data points from Yahoo Finance`);
-    return formattedData;
-    
   } catch (error) {
-    console.error('All Yahoo Finance approaches failed:', error);
+    console.error('Error fetching SPY data from Yahoo Finance:', error);
     throw error;
   }
-};
+}
 
 export const generateMockData = (): StockData[] => {
   console.log('Generating realistic mock SPY data...');
