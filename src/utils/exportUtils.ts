@@ -10,7 +10,7 @@ export const exportPredictionsToCSV = (
 ) => {
   // Create model parameters section
   const modelParamsData = {
-    type: 'Model Parameters',
+    type: 'RERF Model Parameters',
     date: '',
     predicted_price: '',
     confidence_lower: '',
@@ -22,6 +22,7 @@ export const exportPredictionsToCSV = (
     min_samples_leaf: modelParams.min_samples_leaf,
     regression_weight: modelParams.regression_weight,
     feature_importance_threshold: modelParams.feature_importance_threshold,
+    lasso_penalty: modelParams.lasso_penalty,
     forecast_days: forecastDays,
     current_price: currentPrice || '',
     export_date: new Date().toISOString().split('T')[0]
@@ -41,6 +42,7 @@ export const exportPredictionsToCSV = (
     min_samples_leaf: '',
     regression_weight: '',
     feature_importance_threshold: '',
+    lasso_penalty: '',
     forecast_days: '',
     current_price: '',
     export_date: ''
@@ -49,7 +51,7 @@ export const exportPredictionsToCSV = (
   // Combine all data
   const exportData = [modelParamsData, ...predictionData];
 
-  console.log('Export data structure:', exportData);
+  console.log('RERF Export data structure:', exportData);
   console.log('First prediction:', exportData[1]);
 
   const csv = Papa.unparse(exportData, {
@@ -57,13 +59,13 @@ export const exportPredictionsToCSV = (
     skipEmptyLines: false
   });
 
-  console.log('Generated CSV preview:', csv.substring(0, 500));
+  console.log('Generated RERF CSV preview:', csv.substring(0, 500));
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
-  link.setAttribute('download', `spy_predictions_${new Date().toISOString().split('T')[0]}.csv`);
+  link.setAttribute('download', `spy_rerf_predictions_${new Date().toISOString().split('T')[0]}.csv`);
   link.style.visibility = 'hidden';
   document.body.appendChild(link);
   link.click();

@@ -24,4 +24,5 @@ export interface ModelParams {
   min_samples_leaf: number;
   regression_weight: number;
   feature_importance_threshold: number;
+  lasso_penalty: number;
 }

@@ -20,7 +20,8 @@ const Index = () => {
     min_samples_split: 5,
     min_samples_leaf: 2,
     regression_weight: 0.3,
-    feature_importance_threshold: 0.01
+    feature_importance_threshold: 0.01,
+    lasso_penalty: 0.1
   });
 
   const { toast } = useToast();

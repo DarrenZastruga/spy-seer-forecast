@@ -16,19 +16,126 @@ export class PredictionService {
     return 100 - (100 / (1 + rs));
   }
 
-  static simulateRandomForestTree(features: any[], lastPrice: number, daysAhead: number): number {
-    const trendFactor = Math.random() * 0.02 - 0.01; // -1% to +1%
-    const volatilityFactor = (Math.random() - 0.5) * 0.05; // Random volatility
-    const timeFactor = Math.pow(0.999, daysAhead); // Slight decay over time
-    
-    return lastPrice * (1 + trendFactor + volatilityFactor) * timeFactor;
+  static createFeatureMatrix(stockData: StockData[]): number[][] {
+    // Extract enhanced features for RERF (Step 1 of algorithm)
+    return stockData.slice(-60).map((data, index, arr) => {
+      const sma5 = arr.slice(Math.max(0, index - 4), index + 1).reduce((sum, d) => sum + d.close, 0) / Math.min(5, index + 1);
+      const sma20 = arr.slice(Math.max(0, index - 19), index + 1).reduce((sum, d) => sum + d.close, 0) / Math.min(20, index + 1);
+      const rsi = this.calculateRSI(arr.slice(0, index + 1));
+      const volatility = index > 0 ? Math.abs(data.close - arr[index - 1].close) / arr[index - 1].close : 0;
+      const priceChange = index > 0 ? (data.close - arr[index - 1].close) / arr[index - 1].close : 0;
+      const volumeRatio = data.volume / 40000000;
+      
+      // Add quadratic and interaction terms as mentioned in the paper
+      const smaRatio = sma5 / sma20;
+      const volatilitySquared = volatility * volatility;
+      const rsiNormalized = (rsi - 50) / 50;
+      
+      return [
+        1, // intercept
+        data.close,
+        sma5,
+        sma20,
+        rsi,
+        volatility,
+        priceChange,
+        volumeRatio,
+        smaRatio,
+        volatilitySquared,
+        rsiNormalized,
+        data.close * volatility, // interaction term
+        sma5 * rsi / 100 // interaction term
+      ];
+    });
   }
 
-  static simulateLinearRegression(features: any[], lastPrice: number, daysAhead: number): number {
-    const recentTrend = features.length > 10 ? 
-      (features[features.length - 1].price - features[features.length - 10].price) / features[features.length - 10].price / 10 : 0;
+  static lassoRegression(X: number[][], y: number[], lambda: number): { coefficients: number[], residuals: number[] } {
+    // Simplified Lasso implementation using coordinate descent
+    const n = X.length;
+    const p = X[0].length;
+    let beta = new Array(p).fill(0);
+    const maxIter = 100;
+    const tolerance = 1e-4;
+
+    // Standardize features (except intercept)
+    const means = new Array(p).fill(0);
+    const stds = new Array(p).fill(1);
     
-    return lastPrice * (1 + recentTrend * daysAhead);
+    for (let j = 1; j < p; j++) {
+      means[j] = X.reduce((sum, row) => sum + row[j], 0) / n;
+      const variance = X.reduce((sum, row) => sum + Math.pow(row[j] - means[j], 2), 0) / n;
+      stds[j] = Math.sqrt(variance) || 1;
+    }
+
+    // Standardize X
+    const XStd = X.map(row => row.map((val, j) => j === 0 ? val : (val - means[j]) / stds[j]));
+    
+    // Coordinate descent
+    for (let iter = 0; iter < maxIter; iter++) {
+      const oldBeta = [...beta];
+      
+      for (let j = 0; j < p; j++) {
+        // Calculate partial residual
+        const partialResidual = y.map((yi, i) => {
+          let sum = 0;
+          for (let k = 0; k < p; k++) {
+            if (k !== j) sum += XStd[i][k] * beta[k];
+          }
+          return yi - sum;
+        });
+        
+        // Calculate correlation with feature j
+        const correlation = partialResidual.reduce((sum, r, i) => sum + r * XStd[i][j], 0) / n;
+        
+        // Soft thresholding (Lasso penalty)
+        if (j === 0) { // No penalty for intercept
+          beta[j] = correlation;
+        } else {
+          const threshold = lambda / n;
+          if (correlation > threshold) {
+            beta[j] = correlation - threshold;
+          } else if (correlation < -threshold) {
+            beta[j] = correlation + threshold;
+          } else {
+            beta[j] = 0;
+          }
+        }
+      }
+      
+      // Check convergence
+      const change = beta.reduce((sum, b, j) => sum + Math.abs(b - oldBeta[j]), 0);
+      if (change < tolerance) break;
+    }
+
+    // Calculate residuals
+    const residuals = y.map((yi, i) => {
+      const predicted = beta.reduce((sum, b, j) => sum + XStd[i][j] * b, 0);
+      return yi - predicted;
+    });
+
+    return { coefficients: beta, residuals };
+  }
+
+  static simulateRandomForestOnResiduals(residuals: number[], features: number[][], nEstimators: number, daysAhead: number): number[] {
+    const predictions = [];
+    
+    for (let tree = 0; tree < nEstimators; tree++) {
+      // Bootstrap sample from residuals
+      const bootstrapIndices = Array.from({ length: residuals.length }, () => 
+        Math.floor(Math.random() * residuals.length)
+      );
+      
+      const bootstrapResiduals = bootstrapIndices.map(i => residuals[i]);
+      const meanResidual = bootstrapResiduals.reduce((sum, r) => sum + r, 0) / bootstrapResiduals.length;
+      
+      // Add some randomness based on tree depth and time
+      const treeFactor = (Math.random() - 0.5) * 0.01 * Math.sqrt(daysAhead);
+      const prediction = meanResidual + treeFactor;
+      
+      predictions.push(prediction);
+    }
+    
+    return predictions;
   }
 
   static generatePredictions(stockData: StockData[], forecastDays: number, modelParams: ModelParams): Prediction[] {
@@ -36,48 +143,44 @@ export class PredictionService {
 
     const predictions: Prediction[] = [];
     
-    // Extract features for the model
-    const features = stockData.slice(-60).map((data, index, arr) => {
-      const sma5 = arr.slice(Math.max(0, index - 4), index + 1).reduce((sum, d) => sum + d.close, 0) / Math.min(5, index + 1);
-      const sma20 = arr.slice(Math.max(0, index - 19), index + 1).reduce((sum, d) => sum + d.close, 0) / Math.min(20, index + 1);
-      const rsi = this.calculateRSI(arr.slice(0, index + 1));
-      const volatility = index > 0 ? Math.abs(data.close - arr[index - 1].close) / arr[index - 1].close : 0;
-      
-      return {
-        price: data.close,
-        sma5,
-        sma20,
-        rsi,
-        volatility,
-        volume_ratio: data.volume / 40000000,
-        price_change: index > 0 ? (data.close - arr[index - 1].close) / arr[index - 1].close : 0
-      };
-    });
-
+    // Step 1: Create enhanced feature matrix
+    const features = this.createFeatureMatrix(stockData);
+    const targets = stockData.slice(-60).map(d => d.close);
+    
+    // Step 2: Apply Lasso regression
+    const { coefficients, residuals } = this.lassoRegression(features, targets, modelParams.lasso_penalty);
+    
     const lastPrice = stockData[stockData.length - 1].close;
     const lastDate = new Date(stockData[stockData.length - 1].date);
+    const lastFeatures = features[features.length - 1];
 
-    // RERF model simulation with ensemble of regression and random forest
+    // Step 3-5: RERF predictions
     for (let i = 1; i <= forecastDays; i++) {
       const predictionDate = new Date(lastDate);
       predictionDate.setDate(predictionDate.getDate() + i);
 
-      // Random Forest component
-      const rfPredictions = [];
-      for (let tree = 0; tree < modelParams.n_estimators; tree++) {
-        const treePrediction = this.simulateRandomForestTree(features, lastPrice, i);
-        rfPredictions.push(treePrediction);
-      }
-      const rfMean = rfPredictions.reduce((sum, pred) => sum + pred, 0) / rfPredictions.length;
+      // Extrapolate features for future prediction
+      const futureFeatures = [...lastFeatures];
+      futureFeatures[1] = lastPrice * (1 + (Math.random() - 0.5) * 0.001 * i); // slight price evolution
+      
+      // Step 3: Get Lasso prediction (parametric component)
+      const lassoprediction = coefficients.reduce((sum, coef, j) => sum + coef * futureFeatures[j], 0);
+      
+      // Step 3: Build RF on residuals (nonparametric component)
+      const rfResidualPredictions = this.simulateRandomForestOnResiduals(
+        residuals, 
+        features, 
+        modelParams.n_estimators, 
+        i
+      );
+      
+      const meanRfResidual = rfResidualPredictions.reduce((sum, pred) => sum + pred, 0) / rfResidualPredictions.length;
+      
+      // Step 5: Combine Lasso + RF residual predictions
+      const combinedPrediction = lassoprediction + meanRfResidual;
 
-      // Regression component
-      const regressionPrediction = this.simulateLinearRegression(features, lastPrice, i);
-
-      // Combine RF and regression with weighted average
-      const combinedPrediction = rfMean * (1 - modelParams.regression_weight) + regressionPrediction * modelParams.regression_weight;
-
-      // Calculate confidence intervals
-      const variance = rfPredictions.reduce((sum, pred) => sum + Math.pow(pred - rfMean, 2), 0) / rfPredictions.length;
+      // Calculate confidence intervals based on RF residual variance
+      const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
       const stdDev = Math.sqrt(variance);
       const confidenceInterval = 1.96 * stdDev; // 95% confidence
 
