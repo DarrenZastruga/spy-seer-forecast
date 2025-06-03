@@ -1,41 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { TrendingUp, Download, Calendar, Activity, BarChart3, RefreshCw } from 'lucide-react';
+import { usePredictions } from '@/hooks/usePredictions';
+import { fetchStockData, generateMockData } from '@/services/stockApi';
+import { StockData, Prediction, ModelParams } from '@/types/stock';
+import { PredictionCharts } from '@/components/PredictionCharts';
+import { ForecastControls } from '@/components/ForecastControls';
+import { PredictionStats } from '@/components/PredictionStats';
 import * as Papa from 'papaparse';
-
-interface StockData {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  adjClose: number;
-}
-
-interface Prediction {
-  date: string;
-  predicted_price: number;
-  confidence_interval_lower: number;
-  confidence_interval_upper: number;
-  trend: 'up' | 'down' | 'neutral';
-}
-
-interface ModelParams {
-  n_estimators: number;
-  max_depth: number;
-  min_samples_split: number;
-  min_samples_leaf: number;
-  regression_weight: number;
-  feature_importance_threshold: number;
-}
 
 const Index = () => {
   const [stockData, setStockData] = useState<StockData[]>([]);
@@ -43,7 +15,8 @@ const Index = () => {
   const [forecastDays, setForecastDays] = useState([30]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
-  const [modelParams, setModelParams] = useState<ModelParams>({
+  const [dataSource, setDataSource] = useState<'yahoo' | 'mock'>('mock');
+  const [modelParams] = useState<ModelParams>({
     n_estimators: 100,
     max_depth: 10,
     min_samples_split: 5,
@@ -52,55 +25,32 @@ const Index = () => {
     feature_importance_threshold: 0.01
   });
   const { toast } = useToast();
+  const { generatePredictions } = usePredictions();
 
-  // Simulated Yahoo Finance API data fetcher
-  const fetchStockData = useCallback(async () => {
+  const handleFetchStockData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Simulate API call with realistic SPY data
-      const mockData: StockData[] = [];
-      const basePrice = 450;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 252); // 1 year of trading days
-
-      for (let i = 0; i < 252; i++) {
-        const date = new Date(startDate);
-        date.setDate(date.getDate() + i);
-        
-        const volatility = 0.02;
-        const trend = 0.0003;
-        const randomFactor = (Math.random() - 0.5) * 2 * volatility;
-        
-        const price = basePrice * Math.exp((trend + randomFactor) * i);
-        const dailyVolatility = price * 0.01;
-        
-        const open = price + (Math.random() - 0.5) * dailyVolatility;
-        const close = price + (Math.random() - 0.5) * dailyVolatility;
-        const high = Math.max(open, close) + Math.random() * dailyVolatility * 0.5;
-        const low = Math.min(open, close) - Math.random() * dailyVolatility * 0.5;
-        
-        mockData.push({
-          date: date.toISOString().split('T')[0],
-          open: Number(open.toFixed(2)),
-          high: Number(high.toFixed(2)),
-          low: Number(low.toFixed(2)),
-          close: Number(close.toFixed(2)),
-          volume: Math.floor(Math.random() * 50000000) + 30000000,
-          adjClose: Number(close.toFixed(2))
-        });
-      }
-
-      setStockData(mockData);
-      setCurrentPrice(mockData[mockData.length - 1].close);
+      console.log('Attempting to fetch real Yahoo Finance data...');
+      const data = await fetchStockData();
+      setStockData(data);
+      setCurrentPrice(data[data.length - 1].close);
+      setDataSource('yahoo');
       
       toast({
-        title: "Data Updated",
-        description: "SPY historical data fetched successfully",
+        title: "✅ Real Yahoo Finance Data Loaded",
+        description: `Successfully fetched ${data.length} days of real SPY data`,
       });
     } catch (error) {
+      console.error('Yahoo Finance connection failed, using mock data:', error);
+      
+      const mockData = generateMockData();
+      setStockData(mockData);
+      setCurrentPrice(mockData[mockData.length - 1].close);
+      setDataSource('mock');
+      
       toast({
-        title: "Error",
-        description: "Failed to fetch stock data",
+        title: "⚠️ Using Simulated Data",
+        description: "Yahoo Finance connection failed. Using realistic mock data for demonstration.",
         variant: "destructive",
       });
     } finally {
@@ -108,8 +58,7 @@ const Index = () => {
     }
   }, [toast]);
 
-  // Advanced RERF model implementation
-  const generatePredictions = useCallback(() => {
+  const handleGeneratePredictions = useCallback(() => {
     if (stockData.length === 0) return;
 
     const days = forecastDays[0];
@@ -248,31 +197,15 @@ const Index = () => {
     });
   };
 
-  // Combined chart data
-  const chartData = [
-    ...stockData.slice(-30).map(data => ({
-      date: data.date,
-      actual: data.close,
-      type: 'historical'
-    })),
-    ...predictions.map(pred => ({
-      date: pred.date,
-      predicted: pred.predicted_price,
-      lower: pred.confidence_interval_lower,
-      upper: pred.confidence_interval_upper,
-      type: 'prediction'
-    }))
-  ];
-
   useEffect(() => {
-    fetchStockData();
-  }, [fetchStockData]);
+    handleFetchStockData();
+  }, [handleFetchStockData]);
 
   useEffect(() => {
     if (stockData.length > 0) {
-      generatePredictions();
+      handleGeneratePredictions();
     }
-  }, [stockData, forecastDays, generatePredictions]);
+  }, [stockData, forecastDays, handleGeneratePredictions]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
@@ -284,257 +217,57 @@ const Index = () => {
               SPY Price Predictor
             </h1>
             <p className="text-slate-400">Advanced RERF Model for Financial Forecasting</p>
+            <div className="flex items-center space-x-4">
+              {dataSource === 'yahoo' ? (
+                <p className="text-xs text-green-400 flex items-center">
+                  <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+                  Connected to Yahoo Finance API - Real SPY data
+                </p>
+              ) : (
+                <p className="text-xs text-amber-400 flex items-center">
+                  <span className="w-2 h-2 bg-amber-400 rounded-full mr-2"></span>
+                  Using simulated data - Yahoo Finance unavailable
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center space-x-4">
             {currentPrice && (
-              <Badge variant="outline" className="px-4 py-2 text-lg border-green-500 text-green-400">
+              <Badge variant="outline" className={`px-4 py-2 text-lg ${
+                dataSource === 'yahoo' 
+                  ? 'border-green-500 text-green-400' 
+                  : 'border-amber-500 text-amber-400'
+              }`}>
                 Current: ${currentPrice.toFixed(2)}
               </Badge>
             )}
-            <Button
-              onClick={fetchStockData}
-              disabled={isLoading}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isLoading ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Refresh Data
-            </Button>
           </div>
         </div>
 
         {/* Controls */}
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <BarChart3 className="w-5 h-5" />
-              <span>Forecast Controls</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-slate-300 mb-2 block">
-                    Forecast Days: {forecastDays[0]}
-                  </label>
-                  <Slider
-                    value={forecastDays}
-                    onValueChange={setForecastDays}
-                    max={45}
-                    min={1}
-                    step={1}
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              <div className="flex items-end space-x-4">
-                <Button
-                  onClick={generatePredictions}
-                  disabled={stockData.length === 0}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  Generate Forecast
-                </Button>
-                <Button
-                  onClick={exportToCSV}
-                  disabled={predictions.length === 0}
-                  variant="outline"
-                  className="border-slate-600 hover:bg-slate-700"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export CSV
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ForecastControls
+          forecastDays={forecastDays}
+          setForecastDays={setForecastDays}
+          onGeneratePredictions={handleGeneratePredictions}
+          onExportCSV={exportToCSV}
+          onRefreshData={handleFetchStockData}
+          stockDataLength={stockData.length}
+          predictionsLength={predictions.length}
+          isLoading={isLoading}
+        />
 
         {/* Charts */}
-        <Tabs defaultValue="price" className="space-y-4">
-          <TabsList className="bg-slate-800 border-slate-700">
-            <TabsTrigger value="price" className="data-[state=active]:bg-slate-700">Price Chart</TabsTrigger>
-            <TabsTrigger value="confidence" className="data-[state=active]:bg-slate-700">Confidence Bands</TabsTrigger>
-            <TabsTrigger value="parameters" className="data-[state=active]:bg-slate-700">Model Parameters</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="price">
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Activity className="w-5 h-5" />
-                  <span>SPY Price Forecast</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-96">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="date" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: '#1F2937',
-                          border: '1px solid #374151',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="actual"
-                        stroke="#10B981"
-                        strokeWidth={2}
-                        dot={false}
-                        name="Historical Price"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="predicted"
-                        stroke="#F59E0B"
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
-                        dot={false}
-                        name="Predicted Price"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="confidence">
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardHeader>
-                <CardTitle>Confidence Intervals</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-96">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData.filter(d => d.type === 'prediction')}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                      <XAxis dataKey="date" stroke="#9CA3AF" />
-                      <YAxis stroke="#9CA3AF" />
-                      <Tooltip 
-                        contentStyle={{
-                          backgroundColor: '#1F2937',
-                          border: '1px solid #374151',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="upper"
-                        stroke="#EF4444"
-                        fill="#EF4444"
-                        fillOpacity={0.1}
-                        name="Upper Bound"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="lower"
-                        stroke="#10B981"
-                        fill="#10B981"
-                        fillOpacity={0.1}
-                        name="Lower Bound"
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="predicted"
-                        stroke="#F59E0B"
-                        strokeWidth={3}
-                        name="Prediction"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="parameters">
-            <Card className="bg-slate-800/50 border-slate-700">
-              <CardHeader>
-                <CardTitle>RERF Model Parameters</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {Object.entries(modelParams).map(([key, value]) => (
-                    <div key={key} className="bg-slate-700/50 p-4 rounded-lg">
-                      <div className="text-sm text-slate-400 capitalize">
-                        {key.replace(/_/g, ' ')}
-                      </div>
-                      <div className="text-lg font-semibold text-white">
-                        {typeof value === 'number' ? value.toFixed(3) : value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        <PredictionCharts
+          stockData={stockData}
+          predictions={predictions}
+          modelParams={modelParams}
+        />
 
         {/* Statistics */}
-        {predictions.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-green-900/50 to-green-800/50 border-green-700">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-300 text-sm">Next Week Target</p>
-                    <p className="text-2xl font-bold text-white">
-                      ${predictions[6]?.predicted_price?.toFixed(2) || 'N/A'}
-                    </p>
-                  </div>
-                  <TrendingUp className="w-8 h-8 text-green-400" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-blue-900/50 to-blue-800/50 border-blue-700">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-300 text-sm">Confidence Range</p>
-                    <p className="text-lg font-bold text-white">
-                      ±${predictions[0] ? (predictions[0].confidence_interval_upper - predictions[0].predicted_price).toFixed(2) : 'N/A'}
-                    </p>
-                  </div>
-                  <BarChart3 className="w-8 h-8 text-blue-400" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-900/50 to-purple-800/50 border-purple-700">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-300 text-sm">Trend Direction</p>
-                    <p className="text-lg font-bold text-white">
-                      {predictions[0]?.trend?.toUpperCase() || 'NEUTRAL'}
-                    </p>
-                  </div>
-                  <Activity className="w-8 h-8 text-purple-400" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-amber-900/50 to-amber-800/50 border-amber-700">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-amber-300 text-sm">Forecast Days</p>
-                    <p className="text-2xl font-bold text-white">{forecastDays[0]}</p>
-                  </div>
-                  <Calendar className="w-8 h-8 text-amber-400" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        <PredictionStats
+          predictions={predictions}
+          forecastDays={forecastDays[0]}
+        />
       </div>
     </div>
   );
