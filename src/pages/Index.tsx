@@ -7,6 +7,7 @@ import { StockData, Prediction, ModelParams } from '@/types/stock';
 import { PredictionCharts } from '@/components/PredictionCharts';
 import { ForecastControls } from '@/components/ForecastControls';
 import { PredictionStats } from '@/components/PredictionStats';
+import { ParameterOptimizer } from '@/components/ParameterOptimizer';
 import * as Papa from 'papaparse';
 
 const Index = () => {
@@ -16,7 +17,7 @@ const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [dataSource, setDataSource] = useState<'yahoo' | 'mock'>('mock');
-  const [modelParams] = useState<ModelParams>({
+  const [modelParams, setModelParams] = useState<ModelParams>({
     n_estimators: 100,
     max_depth: 10,
     min_samples_split: 5,
@@ -128,6 +129,14 @@ const Index = () => {
     });
   }, [stockData, forecastDays, modelParams, toast]);
 
+  const handleParamsOptimized = (optimizedParams: ModelParams) => {
+    setModelParams(optimizedParams);
+    toast({
+      title: "Parameters Updated",
+      description: "Model will use optimized parameters for future predictions",
+    });
+  };
+
   // Helper functions for technical indicators
   const calculateRSI = (prices: StockData[]): number => {
     if (prices.length < 14) return 50;
@@ -205,7 +214,7 @@ const Index = () => {
     if (stockData.length > 0) {
       handleGeneratePredictions();
     }
-  }, [stockData, forecastDays, handleGeneratePredictions]);
+  }, [stockData, forecastDays, modelParams, handleGeneratePredictions]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
@@ -254,6 +263,13 @@ const Index = () => {
           stockDataLength={stockData.length}
           predictionsLength={predictions.length}
           isLoading={isLoading}
+        />
+
+        {/* Parameter Optimizer */}
+        <ParameterOptimizer
+          stockData={stockData}
+          currentParams={modelParams}
+          onParamsOptimized={handleParamsOptimized}
         />
 
         {/* Charts */}
