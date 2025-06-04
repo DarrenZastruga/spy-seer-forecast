@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -65,7 +64,7 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
       <TabsContent value="price">
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle className="flex items-center space-x-2 text-slate-100">
               <Activity className="w-5 h-5" />
               <span>SPY Price Forecast</span>
             </CardTitle>
@@ -116,7 +115,7 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
       <TabsContent value="confidence">
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader>
-            <CardTitle>Confidence Intervals</CardTitle>
+            <CardTitle className="text-slate-100">Confidence Intervals</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-96">
@@ -169,7 +168,7 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
       <TabsContent value="parameters">
         <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader>
-            <CardTitle>RERF Model Parameters</CardTitle>
+            <CardTitle className="text-slate-100">RERF Model Parameters</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
