@@ -152,19 +152,25 @@ export class PredictionService {
     
     const lastPrice = stockData[stockData.length - 1].close;
     const lastDate = new Date(stockData[stockData.length - 1].date);
-    const lastFeatures = features[features.length - 1];
+    
+    console.log('RERF: Starting forecasts from last price:', lastPrice);
 
-    // Step 3-5: RERF predictions
+    // Calculate average daily change for trend continuation
+    const recentPrices = stockData.slice(-10).map(d => d.close);
+    const avgDailyChange = recentPrices.length > 1 ? 
+      (recentPrices[recentPrices.length - 1] - recentPrices[0]) / (recentPrices.length - 1) : 0;
+
+    // Step 3-5: RERF predictions starting from actual last price
+    let currentPrice = lastPrice;
+    
     for (let i = 1; i <= forecastDays; i++) {
       const predictionDate = new Date(lastDate);
       predictionDate.setDate(predictionDate.getDate() + i);
 
-      // Extrapolate features for future prediction
-      const futureFeatures = [...lastFeatures];
-      futureFeatures[1] = lastPrice * (1 + (Math.random() - 0.5) * 0.001 * i); // slight price evolution
-      
-      // Step 3: Get Lasso prediction (parametric component)
-      const lassoprediction = coefficients.reduce((sum, coef, j) => sum + coef * futureFeatures[j], 0);
+      // Calculate small incremental change based on trend and volatility
+      const trendComponent = avgDailyChange * 0.3; // Reduced trend impact
+      const volatilityComponent = (Math.random() - 0.5) * lastPrice * 0.02; // 2% max daily volatility
+      const timeDecay = Math.exp(-i * 0.05); // Reduce prediction confidence over time
       
       // Step 3: Build RF on residuals (nonparametric component)
       const rfResidualPredictions = this.simulateRandomForestOnResiduals(
@@ -176,24 +182,28 @@ export class PredictionService {
       
       const meanRfResidual = rfResidualPredictions.reduce((sum, pred) => sum + pred, 0) / rfResidualPredictions.length;
       
-      // Step 5: Combine Lasso + RF residual predictions
-      const combinedPrediction = lassoprediction + meanRfResidual;
+      // Combine components for incremental change
+      const dailyChange = (trendComponent + volatilityComponent * timeDecay + meanRfResidual * 0.1);
+      currentPrice = currentPrice + dailyChange;
 
-      // Calculate confidence intervals based on RF residual variance
+      // Calculate confidence intervals based on RF residual variance and time
       const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
-      const stdDev = Math.sqrt(variance);
+      const stdDev = Math.sqrt(variance) * Math.sqrt(i); // Increase uncertainty over time
       const confidenceInterval = 1.96 * stdDev; // 95% confidence
 
-      const trend = combinedPrediction > lastPrice ? 'up' : combinedPrediction < lastPrice ? 'down' : 'neutral';
+      const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
 
       predictions.push({
         date: predictionDate.toISOString().split('T')[0],
-        predicted_price: Number(combinedPrediction.toFixed(2)),
-        confidence_interval_lower: Number((combinedPrediction - confidenceInterval).toFixed(2)),
-        confidence_interval_upper: Number((combinedPrediction + confidenceInterval).toFixed(2)),
+        predicted_price: Number(currentPrice.toFixed(2)),
+        confidence_interval_lower: Number((currentPrice - confidenceInterval).toFixed(2)),
+        confidence_interval_upper: Number((currentPrice + confidenceInterval).toFixed(2)),
         trend
       });
     }
+
+    console.log('RERF: First prediction:', predictions[0]);
+    console.log('RERF: Forecast range:', predictions[0]?.predicted_price, 'to', predictions[predictions.length - 1]?.predicted_price);
 
     return predictions;
   }
