@@ -35,23 +35,21 @@ export const ForecastControls: React.FC<ForecastControlsProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-slate-300 mb-2 block">
-                Forecast Days: {forecastDays[0]}
-              </label>
-              <Slider
-                value={forecastDays}
-                onValueChange={setForecastDays}
-                max={45}
-                min={1}
-                step={1}
-                className="w-full"
-              />
-            </div>
+        <div className="space-y-6">
+          <div>
+            <label className="text-sm font-medium text-slate-300 mb-2 block">
+              Forecast Days: {forecastDays[0]}
+            </label>
+            <Slider
+              value={forecastDays}
+              onValueChange={setForecastDays}
+              max={45}
+              min={1}
+              step={1}
+              className="w-full max-w-md"
+            />
           </div>
-          <div className="flex items-end space-x-4">
+          <div className="flex flex-wrap items-center gap-4">
             <Button
               onClick={onRefreshData}
               disabled={isLoading}

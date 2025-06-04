@@ -56,9 +56,9 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
   return (
     <Tabs defaultValue="price" className="space-y-4">
       <TabsList className="bg-slate-800 border-slate-700">
-        <TabsTrigger value="price" className="data-[state=active]:bg-slate-700">Price Chart</TabsTrigger>
-        <TabsTrigger value="confidence" className="data-[state=active]:bg-slate-700">Confidence Bands</TabsTrigger>
-        <TabsTrigger value="parameters" className="data-[state=active]:bg-slate-700">Model Parameters</TabsTrigger>
+        <TabsTrigger value="price" className="data-[state=active]:bg-slate-700 data-[state=active]:text-slate-100 text-slate-300">Price Chart</TabsTrigger>
+        <TabsTrigger value="confidence" className="data-[state=active]:bg-slate-700 data-[state=active]:text-slate-100 text-slate-300">Confidence Bands</TabsTrigger>
+        <TabsTrigger value="parameters" className="data-[state=active]:bg-slate-700 data-[state=active]:text-slate-100 text-slate-300">Model Parameters</TabsTrigger>
       </TabsList>
 
       <TabsContent value="price">
