@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -120,7 +121,7 @@ export const ParameterOptimizer: React.FC<ParameterOptimizerProps> = ({
   return (
     <Card className="bg-slate-800/50 border-slate-700">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
+        <CardTitle className="flex items-center space-x-2 text-slate-100">
           <Settings className="w-5 h-5" />
           <span>RERF Parameter Optimization</span>
         </CardTitle>

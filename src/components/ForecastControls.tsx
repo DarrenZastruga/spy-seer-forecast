@@ -29,7 +29,7 @@ export const ForecastControls: React.FC<ForecastControlsProps> = ({
   return (
     <Card className="bg-slate-800/50 border-slate-700">
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
+        <CardTitle className="flex items-center space-x-2 text-slate-100">
           <BarChart3 className="w-5 h-5" />
           <span>Forecast Controls</span>
         </CardTitle>
