@@ -16,14 +16,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   return (
     <div className="flex items-center justify-between">
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
-          {stockSymbol ? `${stockSymbol.toUpperCase()} Price Predictor` : "SPY Price Predictor"}
-        </h1>
-        <p className="text-slate-300 text-base italic">
-          regression-enhanced random forest (RERF) model.
-        </p>
-        <p className="text-slate-400">
-          Advanced RERF Model for Financial Forecasting
+        <p className="text-xl sm:text-2xl font-semibold text-slate-200">
+          Advanced Regression-Enhanced Random Forest (RERF) Model for Financial Forecasting.
         </p>
         <div className="flex items-center space-x-4">
           <span className="text-xs text-slate-400">
