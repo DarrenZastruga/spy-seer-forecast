@@ -9,12 +9,14 @@ interface PredictionChartsProps {
   stockData: StockData[];
   predictions: Prediction[];
   modelParams: ModelParams;
+  stockSymbol: string; // Added stockSymbol prop
 }
 
 export const PredictionCharts: React.FC<PredictionChartsProps> = ({
   stockData,
   predictions,
-  modelParams
+  modelParams,
+  stockSymbol // Receive stockSymbol
 }) => {
   const chartData = [
     ...stockData.slice(-30).map(data => ({
@@ -66,7 +68,9 @@ export const PredictionCharts: React.FC<PredictionChartsProps> = ({
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-slate-100">
               <Activity className="w-5 h-5" />
-              <span>SPY Price Forecast</span>
+              <span>
+                {stockSymbol ? `${stockSymbol.toUpperCase()} Price Forecast` : 'Price Forecast'}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent>

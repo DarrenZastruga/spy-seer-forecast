@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useStockData } from '@/hooks/useStockData';
@@ -164,6 +163,7 @@ const Index = () => {
           stockData={stockData}
           predictions={predictions}
           modelParams={modelParams}
+          stockSymbol={stockSymbol}
         />
 
         <PredictionStats
