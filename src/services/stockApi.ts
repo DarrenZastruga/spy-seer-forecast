@@ -1,4 +1,3 @@
-
 import { StockData } from '@/types/stock';
 import { filterWeekendDays } from './formatters';
 
@@ -51,22 +50,20 @@ export const formatYahooFinanceData = (data: any): StockData[] => {
 };
 
 // Fetch historical data from Yahoo Finance API with proxy
-export async function fetchStockData(): Promise<StockData[]> {
+export async function fetchStockData(symbol: string = 'SPY'): Promise<StockData[]> {
   try {
     // Calculate date range (1 year ago to now for more data)
     const now = new Date();
     const endDate = Math.floor(now.getTime() / 1000);
-    
-    // Get 1 year of data
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(now.getFullYear() - 1);
     const startDate = Math.floor(oneYearAgo.getTime() / 1000);
-    
-    console.log('Fetching SPY data from Yahoo Finance API');
-    console.log('Date range:', new Date(startDate * 1000).toISOString(), 'to', new Date(endDate * 1000).toISOString());
-    
-    const ticker = 'SPY';
+
+    const ticker = symbol.toUpperCase();
     const directUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startDate}&period2=${endDate}&interval=1d`;
+    
+    console.log('Fetching', ticker, 'data from Yahoo Finance API');
+    console.log('Date range:', new Date(startDate * 1000).toISOString(), 'to', new Date(endDate * 1000).toISOString());
     console.log('Direct Yahoo URL:', directUrl);
     
     const encodedUrl = encodeURIComponent(directUrl);
@@ -103,7 +100,7 @@ export async function fetchStockData(): Promise<StockData[]> {
       
       const formattedData = formatYahooFinanceData(data);
       
-      console.log('Fetched real SPY data:', formattedData.length, 'data points');
+      console.log('Fetched real', ticker, 'data:', formattedData.length, 'data points');
       
       if (formattedData.length === 0) {
         throw new Error('No data points returned from Yahoo Finance API');
@@ -114,34 +111,40 @@ export async function fetchStockData(): Promise<StockData[]> {
       clearTimeout(timeoutId);
     }
   } catch (error) {
-    console.error('Error fetching SPY data from Yahoo Finance:', error);
+    console.error('Error fetching', symbol, 'data from Yahoo Finance:', error);
     throw error;
   }
 }
 
-export const generateMockData = (): StockData[] => {
-  console.log('Generating realistic mock SPY data...');
+export const generateMockData = (symbol: string = 'SPY'): StockData[] => {
+  console.log(`Generating realistic mock ${symbol.toUpperCase()} data...`);
   const mockData: StockData[] = [];
-  const basePrice = 450;
+  let basePrice = 450;
+  if (symbol.toUpperCase() === 'AAPL') basePrice = 175;
+  if (symbol.toUpperCase() === 'GOOGL') basePrice = 2800;
+  if (symbol.toUpperCase() === 'TSLA') basePrice = 800;
+  if (symbol.toUpperCase() === 'MSFT') basePrice = 350;
+  // (Add more stock defaults as desired.)
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 252);
 
   for (let i = 0; i < 252; i++) {
     const date = new Date(startDate);
     date.setDate(date.getDate() + i);
-    
+
     const volatility = 0.015;
     const trend = 0.0003;
     const randomFactor = (Math.random() - 0.5) * 2 * volatility;
-    
+
     const price = basePrice * Math.exp((trend + randomFactor) * i);
     const dailyVolatility = price * 0.008;
-    
+
     const open = price + (Math.random() - 0.5) * dailyVolatility;
     const close = price + (Math.random() - 0.5) * dailyVolatility;
     const high = Math.max(open, close) + Math.random() * dailyVolatility * 0.3;
     const low = Math.min(open, close) - Math.random() * dailyVolatility * 0.3;
-    
+
     mockData.push({
       date: date.toISOString().split('T')[0],
       open: Number(open.toFixed(2)),
@@ -149,7 +152,7 @@ export const generateMockData = (): StockData[] => {
       low: Number(low.toFixed(2)),
       close: Number(close.toFixed(2)),
       volume: Math.floor(Math.random() * 40000000) + 35000000,
-      adjClose: Number(close.toFixed(2))
+      adjClose: Number(close.toFixed(2)),
     });
   }
 
