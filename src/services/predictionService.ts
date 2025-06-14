@@ -1,3 +1,4 @@
+
 import { StockData, Prediction, ModelParams } from '@/types/stock';
 
 export class PredictionService {
@@ -161,22 +162,32 @@ export class PredictionService {
 
     // Step 3-5: RERF predictions starting from actual last price
     let currentPrice = lastPrice;
-    
-    for (let i = 1; i <= forecastDays; i++) {
-      const predictionDate = new Date(lastDate);
-      predictionDate.setDate(predictionDate.getDate() + i);
+    let predictionCount = 0;
+    let predictionDate = new Date(lastDate);
+
+    while (predictionCount < forecastDays) {
+      // Advance prediction date by 1 day
+      predictionDate.setDate(predictionDate.getDate() + 1);
+
+      // Skip if Saturday (6) or Sunday (0)
+      const dayOfWeek = predictionDate.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        continue;
+      }
+
+      const daysAhead = predictionCount + 1;
 
       // Calculate small incremental change based on trend and volatility
       const trendComponent = avgDailyChange * 0.3; // Reduced trend impact
       const volatilityComponent = (Math.random() - 0.5) * lastPrice * 0.02; // 2% max daily volatility
-      const timeDecay = Math.exp(-i * 0.05); // Reduce prediction confidence over time
+      const timeDecay = Math.exp(-daysAhead * 0.05); // Reduce prediction confidence over time
       
       // Step 3: Build RF on residuals (nonparametric component)
       const rfResidualPredictions = this.simulateRandomForestOnResiduals(
         residuals, 
         features, 
         modelParams.n_estimators, 
-        i
+        daysAhead
       );
       
       const meanRfResidual = rfResidualPredictions.reduce((sum, pred) => sum + pred, 0) / rfResidualPredictions.length;
@@ -189,9 +200,7 @@ export class PredictionService {
       const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
 
       // AGGRESSIVE time scaling
-      // Previous: const stdDev = Math.sqrt(variance) * Math.sqrt(i);
-      // NOW: Increase growth, e.g. i^1.5
-      const stdDev = Math.sqrt(variance) * Math.pow(i, 1.5);
+      const stdDev = Math.sqrt(variance) * Math.pow(daysAhead, 1.5);
 
       const confidenceInterval = 1.96 * stdDev; // 95% confidence
 
@@ -204,6 +213,8 @@ export class PredictionService {
         confidence_interval_upper: Number((currentPrice + confidenceInterval).toFixed(2)),
         trend
       });
+
+      predictionCount += 1;
     }
 
     console.log('RERF: First prediction:', predictions[0]);
