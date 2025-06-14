@@ -1,4 +1,3 @@
-
 import { StockData, Prediction, ModelParams } from '@/types/stock';
 
 export class PredictionService {
@@ -152,7 +151,7 @@ export class PredictionService {
     
     const lastPrice = stockData[stockData.length - 1].close;
     const lastDate = new Date(stockData[stockData.length - 1].date);
-    
+
     console.log('RERF: Starting forecasts from last price:', lastPrice);
 
     // Calculate average daily change for trend continuation
@@ -186,9 +185,14 @@ export class PredictionService {
       const dailyChange = (trendComponent + volatilityComponent * timeDecay + meanRfResidual * 0.1);
       currentPrice = currentPrice + dailyChange;
 
-      // Calculate confidence intervals based on RF residual variance and time
+      // Calculate confidence intervals based on RF residual variance and *aggressive* time scaling
       const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
-      const stdDev = Math.sqrt(variance) * Math.sqrt(i); // Increase uncertainty over time
+
+      // AGGRESSIVE time scaling
+      // Previous: const stdDev = Math.sqrt(variance) * Math.sqrt(i);
+      // NOW: Increase growth, e.g. i^1.5
+      const stdDev = Math.sqrt(variance) * Math.pow(i, 1.5);
+
       const confidenceInterval = 1.96 * stdDev; // 95% confidence
 
       const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
