@@ -162,21 +162,17 @@ export class PredictionService {
     // Step 3-5: RERF predictions starting from actual last price
     let currentPrice = lastPrice;
     let predictionCount = 0;
-    let daysAdded = 0;
+    let daysAhead = 1;
+
+    // Properly advance through calendar, skipping weekends
+    let currentDate = new Date(lastDate.getTime());
+    currentDate.setDate(currentDate.getDate() + 1); // Start with next day after last date
 
     while (predictionCount < forecastDays) {
-      // Always calculate date from lastDate plus daysAdded
-      const predictionDate = new Date(lastDate);
-      predictionDate.setDate(lastDate.getDate() + daysAdded + 1);
-
-      const dayOfWeek = predictionDate.getDay();
-      // Skip Saturday (6) and Sunday (0)
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        daysAdded++;
-        continue;
+      // Skip weekends
+      while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
+        currentDate.setDate(currentDate.getDate() + 1);
       }
-
-      const daysAhead = predictionCount + 1;
 
       // Calculate small incremental change based on trend and volatility
       const trendComponent = avgDailyChange * 0.3; // Reduced trend impact
@@ -205,7 +201,7 @@ export class PredictionService {
       const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
 
       predictions.push({
-        date: predictionDate.toISOString().split('T')[0],
+        date: currentDate.toISOString().split('T')[0],
         predicted_price: Number(currentPrice.toFixed(2)),
         confidence_interval_lower: Number((currentPrice - confidenceInterval).toFixed(2)),
         confidence_interval_upper: Number((currentPrice + confidenceInterval).toFixed(2)),
@@ -213,7 +209,8 @@ export class PredictionService {
       });
 
       predictionCount++;
-      daysAdded++;
+      daysAhead++;
+      currentDate.setDate(currentDate.getDate() + 1); // Always advance to next calendar day
     }
 
     console.log('RERF: First prediction:', predictions[0]);
