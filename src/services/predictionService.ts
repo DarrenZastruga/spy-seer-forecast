@@ -1,4 +1,3 @@
-
 import { StockData, Prediction, ModelParams } from '@/types/stock';
 
 export class PredictionService {
@@ -163,15 +162,17 @@ export class PredictionService {
     // Step 3-5: RERF predictions starting from actual last price
     let currentPrice = lastPrice;
     let predictionCount = 0;
-    let predictionDate = new Date(lastDate);
+    let daysAdded = 0;
 
     while (predictionCount < forecastDays) {
-      // Advance prediction date by 1 day
-      predictionDate.setDate(predictionDate.getDate() + 1);
+      // Always calculate date from lastDate plus daysAdded
+      const predictionDate = new Date(lastDate);
+      predictionDate.setDate(lastDate.getDate() + daysAdded + 1);
 
-      // Skip if Saturday (6) or Sunday (0)
       const dayOfWeek = predictionDate.getDay();
+      // Skip Saturday (6) and Sunday (0)
       if (dayOfWeek === 0 || dayOfWeek === 6) {
+        daysAdded++;
         continue;
       }
 
@@ -198,10 +199,7 @@ export class PredictionService {
 
       // Calculate confidence intervals based on RF residual variance and *aggressive* time scaling
       const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
-
-      // AGGRESSIVE time scaling
       const stdDev = Math.sqrt(variance) * Math.pow(daysAhead, 1.5);
-
       const confidenceInterval = 1.96 * stdDev; // 95% confidence
 
       const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
@@ -214,7 +212,8 @@ export class PredictionService {
         trend
       });
 
-      predictionCount += 1;
+      predictionCount++;
+      daysAdded++;
     }
 
     console.log('RERF: First prediction:', predictions[0]);
