@@ -27,15 +27,20 @@ export class PredictionService {
 
     console.log('Last data date:', lastDataDateString);
     console.log('Last data day of week:', lastDataDate.getDay()); // 0=Sunday, 1=Monday, etc.
-    console.log('Today:', new Date().toISOString().split('T')[0]);
+    
+    // Get today's date for comparison
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0];
+    console.log('Today:', todayString);
 
     // Average daily change
     const recentPrices = stockData.slice(-10).map(d => d.close);
     const avgDailyChange = recentPrices.length > 1 ? 
       (recentPrices[recentPrices.length - 1] - recentPrices[0]) / (recentPrices.length - 1) : 0;
 
-    // Start predictions from the next business day after the last data point
-    let currentDate = new Date(lastDataDate.getTime());
+    // Start predictions from the day AFTER today, not from the day after last data
+    // This ensures we don't predict for dates where actual data should exist
+    let currentDate = new Date(today.getTime());
     currentDate.setDate(currentDate.getDate() + 1);
     
     // Skip to next weekday if we land on weekend
