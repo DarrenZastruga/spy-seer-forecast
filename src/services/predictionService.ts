@@ -19,58 +19,63 @@ export class PredictionService {
     const { coefficients, residuals } = lassoRegression(features, targets, modelParams.lasso_penalty);
 
     const lastPrice = stockData[stockData.length - 1].close;
-    const lastDate = new Date(stockData[stockData.length - 1].date);
+    const lastDataDate = new Date(stockData[stockData.length - 1].date);
 
     // Average daily change
     const recentPrices = stockData.slice(-10).map(d => d.close);
     const avgDailyChange = recentPrices.length > 1 ? 
       (recentPrices[recentPrices.length - 1] - recentPrices[0]) / (recentPrices.length - 1) : 0;
 
-    // main prediction loop
+    // Start from the next business day after the last data point
+    let currentDate = new Date(lastDataDate.getTime());
+    currentDate.setDate(currentDate.getDate() + 1);
+    
+    // Skip to next weekday if we land on weekend
+    while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
     let currentPrice = lastPrice;
     let predictionCount = 0;
     let daysAhead = 1;
 
-    let currentDate = new Date(lastDate.getTime());
-    currentDate.setDate(currentDate.getDate() + 1);
-
     while (predictionCount < forecastDays) {
-      // skip weekends only, include all weekdays (including Mondays)
-      while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
-        currentDate.setDate(currentDate.getDate() + 1);
+      // Only generate predictions for weekdays
+      if (currentDate.getDay() !== 0 && currentDate.getDay() !== 6) {
+        const trendComponent = avgDailyChange * 0.3;
+        const volatilityComponent = (Math.random() - 0.5) * lastPrice * 0.02;
+        const timeDecay = Math.exp(-daysAhead * 0.05);
+
+        const rfResidualPredictions = simulateRandomForestOnResiduals(
+          residuals,
+          features,
+          modelParams.n_estimators,
+          daysAhead
+        );
+        const meanRfResidual = rfResidualPredictions.reduce((sum, pred) => sum + pred, 0) / rfResidualPredictions.length;
+
+        const dailyChange = (trendComponent + volatilityComponent * timeDecay + meanRfResidual * 0.1);
+        currentPrice = currentPrice + dailyChange;
+
+        const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
+        const stdDev = Math.sqrt(variance) * Math.pow(daysAhead, 1.5);
+        const confidenceInterval = 1.96 * stdDev;
+
+        const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
+
+        predictions.push({
+          date: currentDate.toISOString().split('T')[0],
+          predicted_price: Number(currentPrice.toFixed(2)),
+          confidence_interval_lower: Number((currentPrice - confidenceInterval).toFixed(2)),
+          confidence_interval_upper: Number((currentPrice + confidenceInterval).toFixed(2)),
+          trend
+        });
+
+        predictionCount++;
+        daysAhead++;
       }
-
-      const trendComponent = avgDailyChange * 0.3;
-      const volatilityComponent = (Math.random() - 0.5) * lastPrice * 0.02;
-      const timeDecay = Math.exp(-daysAhead * 0.05);
-
-      const rfResidualPredictions = simulateRandomForestOnResiduals(
-        residuals,
-        features,
-        modelParams.n_estimators,
-        daysAhead
-      );
-      const meanRfResidual = rfResidualPredictions.reduce((sum, pred) => sum + pred, 0) / rfResidualPredictions.length;
-
-      const dailyChange = (trendComponent + volatilityComponent * timeDecay + meanRfResidual * 0.1);
-      currentPrice = currentPrice + dailyChange;
-
-      const variance = rfResidualPredictions.reduce((sum, pred) => sum + Math.pow(pred - meanRfResidual, 2), 0) / rfResidualPredictions.length;
-      const stdDev = Math.sqrt(variance) * Math.pow(daysAhead, 1.5);
-      const confidenceInterval = 1.96 * stdDev;
-
-      const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
-
-      predictions.push({
-        date: currentDate.toISOString().split('T')[0],
-        predicted_price: Number(currentPrice.toFixed(2)),
-        confidence_interval_lower: Number((currentPrice - confidenceInterval).toFixed(2)),
-        confidence_interval_upper: Number((currentPrice + confidenceInterval).toFixed(2)),
-        trend
-      });
-
-      predictionCount++;
-      daysAhead++;
+      
+      // Move to next day
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
