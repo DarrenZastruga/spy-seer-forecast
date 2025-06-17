@@ -21,12 +21,16 @@ export class PredictionService {
     const lastPrice = stockData[stockData.length - 1].close;
     const lastDataDate = new Date(stockData[stockData.length - 1].date);
 
+    console.log('Last data date:', lastDataDate.toISOString().split('T')[0]);
+    console.log('Last data day of week:', lastDataDate.getDay()); // 0=Sunday, 1=Monday, etc.
+    console.log('Today:', new Date().toISOString().split('T')[0]);
+
     // Average daily change
     const recentPrices = stockData.slice(-10).map(d => d.close);
     const avgDailyChange = recentPrices.length > 1 ? 
       (recentPrices[recentPrices.length - 1] - recentPrices[0]) / (recentPrices.length - 1) : 0;
 
-    // Start from the next business day after the last data point
+    // Start predictions from the next business day after the last data point
     let currentDate = new Date(lastDataDate.getTime());
     currentDate.setDate(currentDate.getDate() + 1);
     
@@ -34,6 +38,9 @@ export class PredictionService {
     while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
       currentDate.setDate(currentDate.getDate() + 1);
     }
+
+    console.log('Starting predictions from:', currentDate.toISOString().split('T')[0]);
+    console.log('Starting prediction day of week:', currentDate.getDay());
 
     let currentPrice = lastPrice;
     let predictionCount = 0;
@@ -62,6 +69,8 @@ export class PredictionService {
         const confidenceInterval = 1.96 * stdDev;
 
         const trend = currentPrice > lastPrice ? 'up' : currentPrice < lastPrice ? 'down' : 'neutral';
+
+        console.log(`Prediction ${predictionCount + 1}: ${currentDate.toISOString().split('T')[0]} (day ${currentDate.getDay()})`);
 
         predictions.push({
           date: currentDate.toISOString().split('T')[0],
