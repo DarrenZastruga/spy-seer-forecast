@@ -19,9 +19,13 @@ export class PredictionService {
     const { coefficients, residuals } = lassoRegression(features, targets, modelParams.lasso_penalty);
 
     const lastPrice = stockData[stockData.length - 1].close;
-    const lastDataDate = new Date(stockData[stockData.length - 1].date);
+    
+    // Parse date correctly to avoid timezone issues
+    const lastDataDateString = stockData[stockData.length - 1].date;
+    const [year, month, day] = lastDataDateString.split('-').map(Number);
+    const lastDataDate = new Date(year, month - 1, day); // month is 0-indexed
 
-    console.log('Last data date:', lastDataDate.toISOString().split('T')[0]);
+    console.log('Last data date:', lastDataDateString);
     console.log('Last data day of week:', lastDataDate.getDay()); // 0=Sunday, 1=Monday, etc.
     console.log('Today:', new Date().toISOString().split('T')[0]);
 
