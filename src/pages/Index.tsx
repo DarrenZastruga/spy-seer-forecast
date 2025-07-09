@@ -47,10 +47,6 @@ const Index = () => {
     );
     setPredictions(newPredictions);
 
-    toast({
-      title: `Predictions Generated for ${stockSymbol.toUpperCase()}`,
-      description: `RERF model forecasts for ${days} days completed`,
-    });
   }, [stockData, forecastDays, modelParams, toast, stockSymbol]);
 
   const handleParamsOptimized = (optimizedParams: ModelParams) => {
