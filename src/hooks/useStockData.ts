@@ -22,10 +22,6 @@ export const useStockData = () => {
         setStockData(data);
         setCurrentPrice(data[data.length - 1].close);
         setDataSource('yahoo');
-        toast({
-          title: `✅ Real Yahoo Finance Data Loaded for ${querySymbol}`,
-          description: `Successfully fetched ${data.length} days of real ${querySymbol} data`,
-        });
       } catch (error) {
         console.error(`Yahoo Finance connection failed for ${querySymbol}, using mock data:`, error);
 
